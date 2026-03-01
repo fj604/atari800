@@ -277,6 +277,18 @@
     }
   });
 
+  // Toggle fullscreen with F11 (prevent default browser handling)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F11') {
+      e.preventDefault();
+      if (!document.fullscreenElement) {
+        canvas.requestFullscreen?.().catch(err => log(`Fullscreen failed: ${err}`));
+      } else {
+        document.exitFullscreen?.().catch(err => log(`Exit fullscreen failed: ${err}`));
+      }
+    }
+  });
+
   const script = document.createElement('script');
   script.src = 'dist/atari800.js';
   script.onerror = () => log('Failed to load dist/atari800.js. Build the web port first.');
