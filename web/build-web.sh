@@ -30,12 +30,14 @@ emconfigure "${ROOT_DIR}/configure" \
   --target=default \
   --disable-shared \
   --enable-cursesbasic=no \
+  --enable-netsio=no \
+  --enable-riodevice=no \
   --with-readline=no \
   --with-video=sdl2 \
   --with-sound=sdl2 \
   --disable-monitorbreak \
   CFLAGS="-O3" \
-  LDFLAGS="-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sWASM=1 -sSINGLE_FILE=1 -sEXPORTED_RUNTIME_METHODS=['FS','IDBFS']"
+  LDFLAGS="-sUSE_SDL=2 -sALLOW_MEMORY_GROWTH=1 -sWASM=1 -sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=['FS','IDBFS'] -lidbfs.js"
 
 emmake make -j"$(nproc)"
 
@@ -53,5 +55,9 @@ if [[ -z "${OUTPUT}" ]]; then
 fi
 
 cp "${OUTPUT}" "${DIST_DIR}/atari800.js"
+
+if [[ -f "${BUILD_DIR}/src/atari800.wasm" ]]; then
+  cp "${BUILD_DIR}/src/atari800.wasm" "${DIST_DIR}/atari800.wasm"
+fi
 
 echo "Built ${DIST_DIR}/atari800.js"

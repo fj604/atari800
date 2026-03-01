@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Atari800 Web</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Cpath d='M8 2l5 12h-2l-1.2-3H6.2L5 14H3L8 2zm0 4.2L7 9h2L8 6.2z' fill='%23fff'/%3E%3C/svg%3E" />
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #ddd; }
@@ -35,13 +36,14 @@
         <button id="clear-arg">Boot without media</button>
       </div>
       <div>
+        <button id="toggle-sound">Sound: ON</button>
         <button id="toggle-fullscreen">Toggle fullscreen</button>
       </div>
       <p class="hint">Current media argument: <span id="current-media">(none)</span></p>
       <pre id="status"></pre>
     </section>
     <section class="viewer">
-      <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+      <canvas id="canvas" width="336" height="240" oncontextmenu="event.preventDefault()"></canvas>
     </section>
   </main>
 

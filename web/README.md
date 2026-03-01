@@ -34,6 +34,14 @@ The wrapper maps selected files to Atari800 startup arguments:
 
 - `.a8s`, `.state` -> `-state`
 - `.cas` -> `-tape`
-- `.car`, `.rom`, `.bin` -> `-cart`
+- `.a52` -> `-5200 -cart`
+- `.car` -> `-cart` (CART header format, type self-described)
+- `.rom`, `.bin` -> `-cart -cart-type N` where N is inferred from file size:
+  - 2 KB → type 57 (STD\_2)
+  - 4 KB → type 58 (STD\_4)
+  - 8 KB → type 1  (STD\_8, e.g. River Raid, Atari BASIC)
+  - 16 KB → type 2  (STD\_16)
+  - 32 KB → type 12 (XEGS\_32)
+  - other sizes → type 1 (STD\_8 fallback)
 - `.xex`, `.com`, `.exe` -> `-run`
 - everything else -> positional argument (handled by Atari800 file-type detection, e.g. ATR/XFD/ATX images)

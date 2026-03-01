@@ -1,5 +1,6 @@
 (() => {
   const USERDATA_DIR = '/userdata';
+  const MEDIA_META_KEY = 'atari800.web.mediaMeta.v1';
   const statusEl = document.getElementById('status');
   const currentMediaEl = document.getElementById('current-media');
   const selectEl = document.getElementById('images');
@@ -19,6 +20,13 @@
     return params.get('media') || '';
   }
 
+  function isSoundEnabled() {
+    const params = new URLSearchParams(window.location.search);
+    // Sound requires a prior user gesture in browsers (Web Audio autoplay policy).
+    // It is OFF by default; pass ?sound=1 to enable.
+    return params.get('sound') === '1';
+  }
+
   function reloadWithMedia(path) {
     const url = new URL(window.location.href);
     if (path) {
@@ -26,27 +34,106 @@
     } else {
       url.searchParams.delete('media');
     }
+    // Preserve the current sound preference across reloads.
+    if (isSoundEnabled()) {
+      url.searchParams.set('sound', '1');
+    } else {
+      url.searchParams.delete('sound');
+    }
     window.location.href = url.toString();
   }
+
+  function readMediaMeta() {
+    try {
+      const raw = window.localStorage.getItem(MEDIA_META_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeMediaMeta(meta) {
+    try {
+      window.localStorage.setItem(MEDIA_META_KEY, JSON.stringify(meta));
+    } catch {
+      // ignore storage write failures
+    }
+  }
+
+  function setMediaMeta(path, fileInfo) {
+    const meta = readMediaMeta();
+    meta[path] = fileInfo;
+    writeMediaMeta(meta);
+  }
+
+  function getMediaMeta(path) {
+    const meta = readMediaMeta();
+    return meta[path] || null;
+  }
+
+  // Maps raw ROM size in bytes to Atari 8-bit standard cartridge type numbers.
+  // See src/cartridge_info.h for the full list.
+  const STD_CART_TYPE_BY_SIZE = {
+    2048:  57,  // CARTRIDGE_STD_2
+    4096:  58,  // CARTRIDGE_STD_4
+    8192:  1,   // CARTRIDGE_STD_8  (River Raid, BASIC, most 8KB titles)
+    16384: 2,   // CARTRIDGE_STD_16
+    32768: 12,  // CARTRIDGE_XEGS_32 (most common 32KB bank-switched type)
+  };
 
   function classifyArgs(path) {
     if (!path) return [];
     const lower = path.toLowerCase();
     if (lower.endsWith('.state') || lower.endsWith('.a8s')) return ['-state', path];
     if (lower.endsWith('.cas')) return ['-tape', path];
-    if (lower.endsWith('.car') || lower.endsWith('.rom') || lower.endsWith('.bin')) return ['-cart', path];
+    if (lower.endsWith('.a52')) return ['-5200', '-cart', path];
+    if (lower.endsWith('.car')) return ['-cart', path];
+    if (lower.endsWith('.rom') || lower.endsWith('.bin')) {
+      // Always supply -cart-type so the emulator never enters its interactive
+      // cart-type selection menu, which blocks the browser tab indefinitely.
+      const meta = getMediaMeta(path);
+      const size = meta && typeof meta.size === 'number' ? meta.size : 0;
+      const cartType = STD_CART_TYPE_BY_SIZE[size] !== undefined
+        ? STD_CART_TYPE_BY_SIZE[size]
+        : 1; // fall back to STD_8 for unrecognised sizes
+      return ['-cart', path, '-cart-type', String(cartType)];
+    }
     if (lower.endsWith('.xex') || lower.endsWith('.com') || lower.endsWith('.exe')) return ['-run', path];
     return [path];
   }
 
+  function getStartupArgs(path) {
+    const args = ['-no-video-accel'];
+    if (!isSoundEnabled()) {
+      args.push('-nosound');
+    }
+    return [...args, ...classifyArgs(path)];
+  }
+
+  function toggleSound() {
+    const url = new URL(window.location.href);
+    if (isSoundEnabled()) {
+      url.searchParams.delete('sound');
+    } else {
+      url.searchParams.set('sound', '1');
+    }
+    window.location.href = url.toString();
+  }
+
   const startupMediaPath = getStartupPath();
+  const startupArgs = getStartupArgs(startupMediaPath);
   currentMediaEl.textContent = startupMediaPath || '(none)';
+  if (startupMediaPath) {
+    log(`Classifying ${startupMediaPath} as ${classifyArgs(startupMediaPath).join(' ')}`);
+  }
 
   window.Module = {
     canvas,
     print: text => log(text),
     printErr: text => log(`ERR: ${text}`),
-    arguments: classifyArgs(startupMediaPath),
+    arguments: startupArgs,
     preRun: [() => {
       FS.mkdirTree(USERDATA_DIR);
       FS.mount(IDBFS, {}, USERDATA_DIR);
@@ -62,6 +149,17 @@
     }],
     onRuntimeInitialized: () => {
       log('Atari800 runtime initialized.');
+      log(`Startup arguments: ${startupArgs.length ? startupArgs.join(' ') : '(none)'}`);
+      if (startupMediaPath) {
+        try {
+          const stat = FS.stat(startupMediaPath);
+          log(`Media file exists: ${startupMediaPath}, size: ${stat.size}`);
+          const content = FS.readFile(startupMediaPath, {encoding: 'binary'});
+          log(`Media file first 16 bytes: ${Array.from(content.slice(0,16)).map(b => b.toString(16).padStart(2,'0')).join(' ')}`);
+        } catch (err) {
+          log(`Media file not accessible: ${startupMediaPath}, error: ${err}`);
+        }
+      }
       refreshList();
     }
   };
@@ -72,8 +170,10 @@
       reader.onload = () => {
         try {
           const data = new Uint8Array(reader.result);
-          const target = `${USERDATA_DIR}/${file.name}`;
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const target = `${USERDATA_DIR}/${safeName}`;
           FS.writeFile(target, data);
+          setMediaMeta(target, { size: data.byteLength, mtime: Date.now(), originalName: file.name });
           FS.syncfs(false, (err) => {
             if (err) reject(err);
             else resolve(target);
@@ -96,12 +196,22 @@
       const entries = FS.readdir(USERDATA_DIR)
         .filter(name => name !== '.' && name !== '..')
         .sort((a, b) => a.localeCompare(b));
+      const meta = readMediaMeta();
       for (const name of entries) {
+        const path = `${USERDATA_DIR}/${name}`;
+        try {
+          const stat = FS.stat(path);
+          meta[path] = { size: stat.size, mtime: Date.now() };
+        } catch {
+          // ignore per-file stat failures
+        }
         const opt = document.createElement('option');
-        opt.textContent = name;
-        opt.value = `${USERDATA_DIR}/${name}`;
+        const fileMeta = getMediaMeta(path);
+        opt.textContent = fileMeta && fileMeta.originalName ? fileMeta.originalName : name;
+        opt.value = path;
         selectEl.appendChild(opt);
       }
+      writeMediaMeta(meta);
       log(`Found ${entries.length} stored image(s).`);
     } catch (err) {
       log(`Unable to list images: ${err}`);
@@ -153,6 +263,12 @@
   });
 
   document.getElementById('clear-arg').addEventListener('click', () => reloadWithMedia(''));
+
+  const soundBtn = document.getElementById('toggle-sound');
+  if (soundBtn) {
+    soundBtn.textContent = isSoundEnabled() ? 'Sound: ON' : 'Sound: OFF';
+    soundBtn.addEventListener('click', toggleSound);
+  }
 
   document.getElementById('toggle-fullscreen').addEventListener('click', () => {
     if (!document.fullscreenElement) {

@@ -1439,6 +1439,19 @@ void Atari800_Frame(void)
 #ifdef ALTERNATE_SYNC_WITH_HOST
 	if (refresh_counter == 0)
 #endif
+		/* In web builds, frame pacing is driven by the browser main loop.
+		   Avoid blocking sleeps on the main thread, which can hang the tab. */
+		#ifdef __EMSCRIPTEN__
+		if (Atari800_turbo && Atari800_turbo_speed == 0) {
+			static double last_display_screen_time = 0.0;
+			static double const limit = 1.0 / 60.0;
+			double cur_time = Util_time();
+			if (cur_time - last_display_screen_time > limit)
+				last_display_screen_time = cur_time;
+			else
+				Atari800_display_screen = FALSE;
+		}
+		#else
 		if (Atari800_turbo && Atari800_turbo_speed == 0) {
 			/* No need to draw Atari frames with frequency higher than display
 			   refresh rate. */
@@ -1453,6 +1466,7 @@ void Atari800_Frame(void)
 		}
 		else
 			Atari800_Sync();
+		#endif
 #endif /* BENCHMARK */
 #endif /* LIBATARI800 */
 }
