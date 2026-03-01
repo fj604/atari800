@@ -20,11 +20,6 @@
     return params.get('media') || '';
   }
 
-  function isSoundEnabled() {
-    const params = new URLSearchParams(window.location.search);
-    // Sound is ON by default; pass ?sound=0 to disable.
-    return params.get('sound') !== '0';
-  }
 
   function reloadWithMedia(path) {
     const url = new URL(window.location.href);
@@ -32,12 +27,6 @@
       url.searchParams.set('media', path);
     } else {
       url.searchParams.delete('media');
-    }
-    // Preserve the current sound preference across reloads.
-    if (!isSoundEnabled()) {
-      url.searchParams.set('sound', '0');
-    } else {
-      url.searchParams.delete('sound');
     }
     window.location.href = url.toString();
   }
@@ -105,21 +94,9 @@
 
   function getStartupArgs(path) {
     const args = ['-no-video-accel'];
-    if (!isSoundEnabled()) {
-      args.push('-nosound');
-    }
     return [...args, ...classifyArgs(path)];
   }
 
-  function toggleSound() {
-    const url = new URL(window.location.href);
-    if (isSoundEnabled()) {
-      url.searchParams.set('sound', '0');
-    } else {
-      url.searchParams.delete('sound');
-    }
-    window.location.href = url.toString();
-  }
 
   const startupMediaPath = getStartupPath();
   const startupArgs = getStartupArgs(startupMediaPath);
@@ -263,11 +240,6 @@
 
   document.getElementById('clear-arg').addEventListener('click', () => reloadWithMedia(''));
 
-  const soundBtn = document.getElementById('toggle-sound');
-  if (soundBtn) {
-    soundBtn.textContent = isSoundEnabled() ? 'Sound: ON' : 'Sound: OFF';
-    soundBtn.addEventListener('click', toggleSound);
-  }
 
   document.getElementById('toggle-fullscreen').addEventListener('click', () => {
     if (!document.fullscreenElement) {
