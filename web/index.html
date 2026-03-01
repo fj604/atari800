@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atari800 Web</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #111; color: #ddd; }
+    .app { display: grid; grid-template-columns: 320px 1fr; min-height: 100vh; }
+    .panel { padding: 1rem; border-right: 1px solid #333; background: #1a1a1a; }
+    .viewer { display: flex; align-items: center; justify-content: center; background: #000; }
+    h1 { margin-top: 0; font-size: 1.2rem; }
+    label, button, input, select { font-size: 0.95rem; }
+    button { margin: 0.2rem 0.3rem 0.2rem 0; padding: 0.4rem 0.6rem; }
+    .hint { color: #aaa; font-size: 0.85rem; }
+    #canvas { max-width: 100%; max-height: 100vh; image-rendering: pixelated; }
+    #status { white-space: pre-wrap; font-size: 0.85rem; color: #9ecbff; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="panel">
+      <h1>Atari800 Web</h1>
+      <p class="hint">Upload emulator images (ROMs, cartridges, disks, tapes, executables, states). They are saved in browser storage (IndexedDB) and can be launched any time.</p>
+      <input id="add-files" type="file" multiple />
+      <div>
+        <button id="refresh-list">Refresh</button>
+        <button id="delete-selected">Delete selected</button>
+      </div>
+      <label for="images">Stored images</label><br />
+      <select id="images" size="10" style="width:100%"></select>
+      <div>
+        <button id="launch">Launch selected</button>
+        <button id="clear-arg">Boot without media</button>
+      </div>
+      <div>
+        <button id="toggle-fullscreen">Toggle fullscreen</button>
+      </div>
+      <p class="hint">Current media argument: <span id="current-media">(none)</span></p>
+      <pre id="status"></pre>
+    </section>
+    <section class="viewer">
+      <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    </section>
+  </main>
+
+  <script src="wrapper.js"></script>
+</body>
+</html>

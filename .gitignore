@@ -42,3 +42,6 @@
 
 # VS Code
 /.vscode
+
+/web/dist/atari800.js
+/build-web
