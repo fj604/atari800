@@ -22,9 +22,8 @@
 
   function isSoundEnabled() {
     const params = new URLSearchParams(window.location.search);
-    // Sound requires a prior user gesture in browsers (Web Audio autoplay policy).
-    // It is OFF by default; pass ?sound=1 to enable.
-    return params.get('sound') === '1';
+    // Sound is ON by default; pass ?sound=0 to disable.
+    return params.get('sound') !== '0';
   }
 
   function reloadWithMedia(path) {
@@ -35,8 +34,8 @@
       url.searchParams.delete('media');
     }
     // Preserve the current sound preference across reloads.
-    if (isSoundEnabled()) {
-      url.searchParams.set('sound', '1');
+    if (!isSoundEnabled()) {
+      url.searchParams.set('sound', '0');
     } else {
       url.searchParams.delete('sound');
     }
@@ -115,9 +114,9 @@
   function toggleSound() {
     const url = new URL(window.location.href);
     if (isSoundEnabled()) {
-      url.searchParams.delete('sound');
+      url.searchParams.set('sound', '0');
     } else {
-      url.searchParams.set('sound', '1');
+      url.searchParams.delete('sound');
     }
     window.location.href = url.toString();
   }
@@ -272,8 +271,7 @@
 
   document.getElementById('toggle-fullscreen').addEventListener('click', () => {
     if (!document.fullscreenElement) {
-      const target = canvas.parentElement;
-      target.requestFullscreen?.().catch(err => log(`Fullscreen failed: ${err}`));
+      canvas.requestFullscreen?.().catch(err => log(`Fullscreen failed: ${err}`));
     } else {
       document.exitFullscreen?.().catch(err => log(`Exit fullscreen failed: ${err}`));
     }
