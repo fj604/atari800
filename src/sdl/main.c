@@ -211,7 +211,14 @@ int main(int argc, char **argv)
 
 	/* main loop */
 #ifdef __EMSCRIPTEN__
-	emscripten_set_main_loop(PLATFORM_MainLoopStep, 0, 1);
+	{
+		/* Use the emulator's target FPS (PAL/NTSC) when running under Emscripten.
+		   Passing a positive fps makes Emscripten use timers instead of RAF,
+		   which better matches the Atari frame rates (PAL ~49.86fps, NTSC ~59.92fps). */
+		int fps = (int)((Atari800_tv_mode == Atari800_TV_PAL) ? (Atari800_FPS_PAL + 0.5) : (Atari800_FPS_NTSC + 0.5));
+		if (fps <= 0) fps = 60;
+		emscripten_set_main_loop(PLATFORM_MainLoopStep, fps, 1);
+	}
 #else
 	for (;;) {
 		PLATFORM_MainLoopStep();
