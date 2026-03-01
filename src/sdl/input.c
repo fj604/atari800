@@ -79,7 +79,14 @@ static int kbd_joy_1_enabled = FALSE;	/* disabled, would steal normal keys */
    in the order up, down, left, right, trigger */
 static int kbd_stick0[5] = {
 #if SDL2
+	/* For the Emscripten/web build use arrow keys + Left Ctrl as
+	   the default keyboard joystick mapping. For other SDL2 builds
+	   preserve the traditional numpad + Right Ctrl mapping. */
+#if defined(__EMSCRIPTEN__)
+	SDLK_UP, SDLK_DOWN, SDLK_LEFT, SDLK_RIGHT, SDLK_LCTRL
+#else
 	SDLK_KP_8, SDLK_KP_5, SDLK_KP_4, SDLK_KP_6, SDLK_RCTRL
+#endif
 #else
 	SDLK_KP8, SDLK_KP5, SDLK_KP4, SDLK_KP6, SDLK_RCTRL
 #endif
