@@ -299,8 +299,11 @@ static void reset_real_js_configs(void)
         stick_devs[i].real_config.axes = 0;
         stick_devs[i].real_config.diagonal_zones = JoystickNarrowDiagonalsZone;
 #ifdef __EMSCRIPTEN__
-        /* For the browser/Emscripten build, default to D-pad (hat) movement and
-           map buttons using the standard Gamepad API raw indices:
+        /* For the browser/Emscripten build, enable D-pad (hat) movement AND
+           left-analog-stick movement (axes 0/1) simultaneously.  Both sources
+           are always sampled, so either the D-pad or the left stick can drive
+           the Atari joystick.  Button mapping uses the standard Gamepad API
+           raw indices:
              0=A, 1=B, 2=X, 3=Y, 4=LB, 5=RB, 6=LT, 7=RT,
              8=Back/Select, 9=Start, 10=LSB, 11=RSB,
              12-15=DPad (handled separately via use_hat). */
@@ -2188,8 +2191,9 @@ static int single_stick_port(int num) {
 		SDL_JoystickUpdate();
 		if (s->real_config.use_hat)
 			port &= get_SDL_joystick_hat_state(s->sdl_joy);
-		else
-			port &= get_SDL_joystick_state(s->sdl_joy, &s->real_config);
+		/* Always also sample the analog axes so that the left stick works
+		   alongside the D-pad (use_hat path above). */
+		port &= get_SDL_joystick_state(s->sdl_joy, &s->real_config);
 	}
 	return port;
 }
