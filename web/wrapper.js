@@ -249,8 +249,31 @@
     }
   });
 
-  // Toggle fullscreen with F11 (prevent default browser handling)
+  // Intercept problematic function keys in the capture phase so they never
+  // reach Emscripten's SDL event queue.
+  //   F1  -> AKEY_UI   : blocking menu loop (hangs the browser)
+  //   F8  -> monitor   : blocking interactive monitor (hangs the browser)
+  //   F9  -> AKEY_EXIT : calls exit(0), kills the WASM module
+  //   F11 -> toggle fullscreen (handled here, not passed to emulator)
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      log('F1 (UI menu) is not available in the browser version.');
+      return;
+    }
+    if (e.key === 'F8') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      log('F8 (monitor) is not available in the browser version.');
+      return;
+    }
+    if (e.key === 'F9') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      log('F9 (exit): reload the page to restart the emulator.');
+      return;
+    }
     if (e.key === 'F11') {
       e.preventDefault();
       if (!document.fullscreenElement) {
@@ -259,10 +282,51 @@
         document.exitFullscreen?.().catch(err => log(`Exit fullscreen failed: ${err}`));
       }
     }
-  });
+  }, /* capture */ true);
 
   const script = document.createElement('script');
   script.src = 'dist/atari800.js';
   script.onerror = () => log('Failed to load dist/atari800.js. Build the web port first.');
   document.body.appendChild(script);
+
+  // ---------------------------------------------------------------------------
+  // Gamepad / controller support
+  // ---------------------------------------------------------------------------
+  // Browsers only expose gamepads after the user presses a button on them
+  // (security requirement).  We listen for the 'gamepadconnected' event and
+  // also poll periodically so the status indicator stays up-to-date.
+  // Emscripten's SDL2 backend connects to the Gamepad API automatically once
+  // SDL_INIT_JOYSTICK is called, so we don't need to forward any data – we just
+  // update the UI.
+
+  const gamepadStatusEl = document.getElementById('gamepad-status');
+
+  function updateGamepadStatus() {
+    if (!navigator.getGamepads) {
+      if (gamepadStatusEl) gamepadStatusEl.textContent = 'Gamepad API not supported in this browser.';
+      return;
+    }
+    const pads = Array.from(navigator.getGamepads()).filter(Boolean);
+    if (!gamepadStatusEl) return;
+    if (pads.length === 0) {
+      gamepadStatusEl.textContent = 'no gamepad detected';
+    } else {
+      gamepadStatusEl.textContent = pads.map((p, i) => `#${i}: ${p.id.slice(0, 40)}`).join('; ');
+    }
+  }
+
+  window.addEventListener('gamepadconnected', (e) => {
+    log(`Gamepad connected: ${e.gamepad.id} (index ${e.gamepad.index})`);
+    updateGamepadStatus();
+  });
+
+  window.addEventListener('gamepaddisconnected', (e) => {
+    log(`Gamepad disconnected: ${e.gamepad.id} (index ${e.gamepad.index})`);
+    updateGamepadStatus();
+  });
+
+  // Poll every 2 s so the status widget refreshes even if gamepads were already
+  // connected before the page loaded.
+  setInterval(updateGamepadStatus, 2000);
+  updateGamepadStatus();
 })();
