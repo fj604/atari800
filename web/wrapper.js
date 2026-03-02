@@ -5,9 +5,104 @@
   const currentMediaEl = document.getElementById('current-media');
   const selectEl = document.getElementById('images');
   const canvas = document.getElementById('canvas');
+  const viewer = document.getElementById('viewer');
+  const fullscreenRoot = document.getElementById('fullscreen-root');
+  const fullscreenStage = document.getElementById('fullscreen-stage');
+  const scaleEl = document.getElementById('view-scale');
+  const scaleValueEl = document.getElementById('view-scale-value');
+  const CANVAS_BASE_WIDTH = Number(canvas.getAttribute('width')) || 336;
+  const CANVAS_BASE_HEIGHT = Number(canvas.getAttribute('height')) || 240;
 
+  function isViewerFullscreen() {
+    return document.fullscreenElement === fullscreenRoot || document.webkitFullscreenElement === fullscreenRoot;
+  }
+
+  function moveCanvasToFullscreen() {
+    if (!fullscreenRoot || !fullscreenStage || canvas.parentElement === fullscreenStage) return;
+    fullscreenStage.appendChild(canvas);
+    fullscreenRoot.hidden = false;
+    fullscreenRoot.classList.add('active');
+  }
+
+  function restoreCanvasFromFullscreen() {
+    if (canvas.parentElement !== viewer) {
+      viewer.appendChild(canvas);
+    }
+    fullscreenRoot.classList.remove('active');
+    fullscreenRoot.hidden = true;
+  }
+
+  async function enterFullscreen() {
+    moveCanvasToFullscreen();
+    fitCanvasToViewer();
+    try {
+      if (fullscreenRoot.requestFullscreen) {
+        await fullscreenRoot.requestFullscreen({ navigationUI: 'hide' });
+      } else if (fullscreenRoot.webkitRequestFullscreen) {
+        fullscreenRoot.webkitRequestFullscreen();
+      }
+    } catch (err) {
+      log(`Fullscreen failed: ${err}`);
+      restoreCanvasFromFullscreen();
+    }
+  }
+
+  function exitFullscreen() {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(err => log(`Exit fullscreen failed: ${err}`));
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+
+  function toggleFullscreen() {
+    if (!isViewerFullscreen()) {
+      enterFullscreen();
+    } else {
+      exitFullscreen();
+    }
+  }
+
+
+
+  function fitCanvasToViewer() {
+    const fitTarget = isViewerFullscreen() ? fullscreenStage : viewer;
+    const viewerRect = fitTarget.getBoundingClientRect();
+    const availW = Math.max(1, Math.floor(viewerRect.width));
+    const availH = Math.max(1, Math.floor(viewerRect.height));
+    const aspect = CANVAS_BASE_WIDTH / CANVAS_BASE_HEIGHT;
+
+    let targetW;
+    let targetH;
+
+    if (isViewerFullscreen()) {
+      targetW = Math.floor(Math.min(availW, availH * aspect));
+      targetH = Math.floor(targetW / aspect);
+    } else {
+      const scale = Math.max(1, Number(scaleEl?.value) || 1);
+      if (scaleValueEl) scaleValueEl.textContent = `${scale.toFixed(2)}×`;
+      targetW = Math.round(CANVAS_BASE_WIDTH * scale);
+      targetH = Math.round(CANVAS_BASE_HEIGHT * scale);
+      if (targetW > availW || targetH > availH) {
+        const factor = Math.min(availW / targetW, availH / targetH);
+        targetW = Math.max(1, Math.floor(targetW * factor));
+        targetH = Math.max(1, Math.floor(targetH * factor));
+      }
+    }
+
+    canvas.style.width = `${targetW}px`;
+    canvas.style.height = `${targetH}px`;
+  }
+
+  function updateFullscreenUi() {
+    const isFullscreen = isViewerFullscreen();
+    const btn = document.getElementById('toggle-fullscreen');
+    if (btn) btn.textContent = isFullscreen ? 'Exit fullscreen' : 'Fullscreen';
+    fitCanvasToViewer();
+  }
   function log(msg) {
-    statusEl.textContent = `${msg}\n${statusEl.textContent}`.slice(0, 4000);
+    if (!statusEl) return;
+    statusEl.textContent = String(msg);
   }
 
   function getSelectedPath() {
@@ -242,19 +337,28 @@
 
 
   document.getElementById('toggle-fullscreen').addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      canvas.requestFullscreen?.().catch(err => log(`Fullscreen failed: ${err}`));
-    } else {
-      document.exitFullscreen?.().catch(err => log(`Exit fullscreen failed: ${err}`));
-    }
+    toggleFullscreen();
   });
 
-  // Intercept problematic function keys in the capture phase so they never
-  // reach Emscripten's SDL event queue.
-  //   F1  -> AKEY_UI   : blocking menu loop (hangs the browser)
-  //   F8  -> monitor   : blocking interactive monitor (hangs the browser)
-  //   F9  -> AKEY_EXIT : calls exit(0), kills the WASM module
-  //   F11 -> toggle fullscreen (handled here, not passed to emulator)
+  scaleEl?.addEventListener('input', fitCanvasToViewer);
+  document.addEventListener('fullscreenchange', () => {
+    if (!isViewerFullscreen()) restoreCanvasFromFullscreen();
+    updateFullscreenUi();
+  });
+  document.addEventListener('webkitfullscreenchange', () => {
+    if (!isViewerFullscreen()) restoreCanvasFromFullscreen();
+    updateFullscreenUi();
+  });
+  window.addEventListener('resize', fitCanvasToViewer);
+  if (window.ResizeObserver) {
+    new ResizeObserver(fitCanvasToViewer).observe(viewer);
+  }
+  restoreCanvasFromFullscreen();
+  fitCanvasToViewer();
+  updateFullscreenUi();
+
+  // Intercept certain function keys in the capture phase so they don't
+  // reach the emulator's event queue and disrupt the page (e.g. F11).
   document.addEventListener('keydown', (e) => {
     if (e.key === 'F1') {
       e.preventDefault();
@@ -276,11 +380,7 @@
     }
     if (e.key === 'F11') {
       e.preventDefault();
-      if (!document.fullscreenElement) {
-        canvas.requestFullscreen?.().catch(err => log(`Fullscreen failed: ${err}`));
-      } else {
-        document.exitFullscreen?.().catch(err => log(`Exit fullscreen failed: ${err}`));
-      }
+      toggleFullscreen();
     }
   }, /* capture */ true);
 
