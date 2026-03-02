@@ -75,7 +75,7 @@
     if (!path) return [];
     const lower = path.toLowerCase();
     if (lower.endsWith('.state') || lower.endsWith('.a8s')) return ['-state', path];
-    if (lower.endsWith('.cas')) return ['-tape', path];
+    if (lower.endsWith('.cas')) return ['-boottape', path];
     if (lower.endsWith('.a52')) return ['-5200', '-cart', path];
     if (lower.endsWith('.car')) return ['-cart', path];
     if (lower.endsWith('.rom') || lower.endsWith('.bin')) {
