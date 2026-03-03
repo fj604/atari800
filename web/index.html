@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atari800 Web</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #ddd;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid #2a2a2a;
+      background: #171717;
+    }
+    .toolbar label, .toolbar button, .toolbar input, .toolbar select { font-size: 0.9rem; }
+    .toolbar button { padding: 0.35rem 0.6rem; }
+    #images { min-width: 14rem; max-width: 20rem; }
+    .spacer { display: none; }
+    .main {
+      display: grid;
+      place-items: center;
+      padding: 0.75rem;
+      background: #000;
+    }
+    .viewer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+    .fullscreen-root {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      background: #000;
+      display: none;
+    }
+    .fullscreen-root.active { display: block; }
+    .fullscreen-stage {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #000;
+    }
+    #canvas {
+      display: block;
+      image-rendering: pixelated;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    #status {
+      font-size: 0.8rem;
+      color: #9ecbff;
+      opacity: 0.9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 20rem;
+    }
+  </style>
+</head>
+<body>
+  <section class="toolbar">
+    <input id="add-files" type="file" multiple />
+    <select id="images"></select>
+    <button id="launch">Launch</button>
+    <button id="clear-arg">No media</button>
+    <button id="delete-selected">Delete</button>
+    <button id="refresh-list">Refresh</button>
+
+    <label for="view-scale">Size</label>
+    <input id="view-scale" type="range" min="1" max="5" step="0.25" value="2" />
+    <span id="view-scale-value">2.00×</span>
+
+    <button id="toggle-fullscreen">Fullscreen (F11)</button>
+    <button id="controls-btn">Controls</button>
+
+    <div class="spacer"></div>
+    <span id="current-media">(none)</span>
+  </section>
+
+  <main class="main">
+    <section id="viewer" class="viewer">
+      <canvas id="canvas" width="336" height="240" oncontextmenu="event.preventDefault()"></canvas>
+    </section>
+  </main>
+
+
+  <div id="fullscreen-root" class="fullscreen-root" hidden>
+    <div id="fullscreen-stage" class="fullscreen-stage"></div>
+  </div>
+
+  <div id="controls-modal" class="modal" hidden>
+    <div class="modal-content">
+      <button class="modal-close" id="controls-close" aria-label="Close">×</button>
+      <h3>Keyboard Controls</h3>
+      <ul>
+        <li><strong>Arrow keys</strong>: Joystick direction</li>
+        <li><strong>Left Ctrl</strong>: Joystick fire</li>
+      </ul>
+      <h4>Function keys</h4>
+      <pre>
+    F2  - Option
+    F3  - Select
+    F4  - Start
+    F5  - Reset
+    F11 - Fullscreen
+      </pre>
+    </div>
+  </div>
+
+  <script src="wrapper.js"></script>
+  <script>
+    (function(){
+      var controlsBtn = document.getElementById('controls-btn');
+      var modal = document.getElementById('controls-modal');
+      var close = document.getElementById('controls-close');
+
+      function showModal(){
+        modal.hidden = false;
+        modal.style.display = 'flex';
+        requestAnimationFrame(()=> modal.classList.add('visible'));
+      }
+      function hideModal(){
+        modal.classList.remove('visible');
+        var onEnd = function(e){
+          if (e.target !== modal) return;
+          modal.style.display = 'none';
+          modal.hidden = true;
+          modal.removeEventListener('transitionend', onEnd);
+        };
+        modal.addEventListener('transitionend', onEnd);
+      }
+
+      controlsBtn && controlsBtn.addEventListener('click', showModal);
+      close && close.addEventListener('click', hideModal);
+      modal && modal.addEventListener('click', function(e){ if(e.target===modal) hideModal(); });
+      document.addEventListener('keydown', function(e){ if(e.key==='Escape') hideModal(); });
+    })();
+  </script>
+
+  <style>
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      min-height: 100vh;
+      background: rgba(0,0,0,0.6);
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+    .modal.visible { opacity: 1; }
+    .modal[hidden] { display: none; }
+    .modal-content {
+      background: #121212;
+      color: #ddd;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      max-width: 560px;
+      width: 90%;
+      margin: 0 auto;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      position: relative;
+      max-height: 90vh;
+      overflow: auto;
+      transform: translateY(8px) scale(0.98);
+      opacity: 0;
+      transition: transform 200ms ease, opacity 180ms ease;
+    }
+    .modal.visible .modal-content { transform: translateY(0) scale(1); opacity: 1; }
+    .modal-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #bbb;
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+    .modal pre { background: #0b0b0b; padding: 0.5rem; border-radius: 4px; overflow:auto; }
+  </style>
+</body>
+</html>

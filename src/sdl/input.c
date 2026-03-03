@@ -79,7 +79,14 @@ static int kbd_joy_1_enabled = FALSE;	/* disabled, would steal normal keys */
    in the order up, down, left, right, trigger */
 static int kbd_stick0[5] = {
 #if SDL2
+	/* For the Emscripten/web build use arrow keys + Left Ctrl as
+	   the default keyboard joystick mapping. For other SDL2 builds
+	   preserve the traditional numpad + Right Ctrl mapping. */
+#if defined(__EMSCRIPTEN__)
+	SDLK_UP, SDLK_DOWN, SDLK_LEFT, SDLK_RIGHT, SDLK_LCTRL
+#else
 	SDLK_KP_8, SDLK_KP_5, SDLK_KP_4, SDLK_KP_6, SDLK_RCTRL
+#endif
 #else
 	SDLK_KP8, SDLK_KP5, SDLK_KP4, SDLK_KP6, SDLK_RCTRL
 #endif
@@ -288,10 +295,53 @@ static void reset_real_js_configs(void)
 {
     int i;
     for (i = 0; i < MAX_JOYSTICKS; i++) {
-        stick_devs[i].real_config.use_hat = FALSE;
 #if SDL2
         stick_devs[i].real_config.axes = 0;
         stick_devs[i].real_config.diagonal_zones = JoystickNarrowDiagonalsZone;
+#ifdef __EMSCRIPTEN__
+        /* For the browser/Emscripten build, enable D-pad (hat) movement AND
+           left-analog-stick movement (axes 0/1) simultaneously.  Both sources
+           are always sampled, so either the D-pad or the left stick can drive
+           the Atari joystick.  Button mapping uses the standard Gamepad API
+           raw indices:
+             0=A, 1=B, 2=X, 3=Y, 4=LB, 5=RB, 6=LT, 7=RT,
+             8=Back/Select, 9=Start, 10=LSB, 11=RSB,
+             12-15=DPad (handled separately via use_hat). */
+        stick_devs[i].real_config.use_hat = TRUE;
+		for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
+			switch (btn) {
+			case 0:  /* A - fire */
+			case 1:  /* B - fire */
+			case 2:  /* X - fire */
+			case 4:  /* Left Bumper - fire */
+			case 5:  /* Right Bumper - fire */
+			case 6:  /* Left Trigger (digital) - fire */
+			case 7:  /* Right Trigger (digital) - fire */
+			case 10: /* Left Stick press - fire */
+			case 11: /* Right Stick press - fire */
+				stick_devs[i].real_config.buttons[btn].action = JoystickUiAction;
+				stick_devs[i].real_config.buttons[btn].key = AKEY_CONTROLLER_BUTTON_TRIGGER;
+				break;
+			case 3:  /* Y - OPTION console key */
+				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
+				stick_devs[i].real_config.buttons[btn].key = AKEY_OPTION;
+				break;
+			case 8:  /* Back/Select - SELECT console key */
+				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
+				stick_devs[i].real_config.buttons[btn].key = AKEY_SELECT;
+				break;
+			case 9:  /* Start/Menu - START console key */
+				stick_devs[i].real_config.buttons[btn].action = JoystickAtariKey;
+				stick_devs[i].real_config.buttons[btn].key = AKEY_START;
+				break;
+			default:
+				stick_devs[i].real_config.buttons[btn].action = JoystickNoAction;
+				stick_devs[i].real_config.buttons[btn].key = 0;
+				break;
+			}
+		}
+#else  /* !__EMSCRIPTEN__ */
+        stick_devs[i].real_config.use_hat = FALSE;
 		for (int btn = 0; btn < INPUT_JOYSTICK_MAX_BUTTONS; ++btn) {
 			switch (btn) {
 			case SDL_CONTROLLER_BUTTON_LEFTSTICK:
@@ -331,7 +381,10 @@ static void reset_real_js_configs(void)
 				break;
 			}
 		}
-#endif
+#endif /* __EMSCRIPTEN__ */
+#else  /* !SDL2 */
+        stick_devs[i].real_config.use_hat = FALSE;
+#endif /* SDL2 */
     }
 }
 
@@ -1115,6 +1168,11 @@ int PLATFORM_Keyboard(void)
 		key_pressed = 0;
 		return INPUT_key_shift ? AKEY_COLDSTART : AKEY_WARMSTART;
 	}
+#ifndef __EMSCRIPTEN__
+	/* F9 (exit), F1 (UI menu), F8 (monitor) all require blocking loops or
+	   call exit() and are incompatible with Emscripten's event-driven model.
+	   In the browser build these keys are suppressed at the JavaScript level;
+	   guard them here too so a rebuild is always safe. */
 	if (lastkey == KBD_EXIT) {
 		return AKEY_EXIT;
 	}
@@ -1125,6 +1183,7 @@ int PLATFORM_Keyboard(void)
 	if (lastkey == KBD_MON) {
 		UI_alt_function = UI_MENU_MONITOR;
 	}
+#endif /* __EMSCRIPTEN__ */
 	if (lastkey == KBD_HELP) {
 		return AKEY_HELP ^ shiftctrl;
 	}
@@ -1649,7 +1708,83 @@ static void Init_SDL_Joysticks(void)
 		Log_flushlog();
 		exit(-1);
 	}
+	/* Ensure joystick button/axis events are dispatched via SDL_PollEvent.
+	   Required for SDL_JOYBUTTONDOWN etc. to fire, especially in Emscripten. */
+	SDL_JoystickEventState(SDL_ENABLE);
 
+#if SDL2
+	{
+	/* Pre-open every SDL joystick so we can inspect axis/button counts, then
+	   assign emulated slots in two passes:
+	     Pass 1 – devices with >= 2 axes (real gamepads: Xbox, PS, Switch …)
+	     Pass 2 – everything else (headsets, audio dongles, etc. that expose
+	               a HID joystick interface with 0 axes)
+	   This stops USB headsets from stealing slot 0 and pushing real gamepads
+	   to higher-numbered emulated slots.
+	   SDL_IsGameController() is NOT used here because its database lookup
+	   is unreliable in Emscripten's SDL2 shim. */
+	int num_sdl = SDL_NumJoysticks();
+	SDL_Joystick *opened[MAX_JOYSTICKS * 2]; /* temp handles, indexed by sdl_idx */
+	int naxes[MAX_JOYSTICKS * 2];
+	int max_open = (num_sdl < MAX_JOYSTICKS * 2) ? num_sdl : MAX_JOYSTICKS * 2;
+	for (sdl_idx = 0; sdl_idx < max_open; sdl_idx++) {
+		opened[sdl_idx] = SDL_JoystickOpen(sdl_idx);
+		naxes[sdl_idx] = opened[sdl_idx] ? SDL_JoystickNumAxes(opened[sdl_idx]) : 0;
+	}
+
+	/* Pass 1: devices with >= 2 axes (proper gamepads). */
+	for (sdl_idx = 0; sdl_idx < max_open && emu_idx < MAX_JOYSTICKS; sdl_idx++) {
+		if (!opened[sdl_idx] || naxes[sdl_idx] < 2)
+			continue;
+		struct stick_dev *s = &stick_devs[emu_idx];
+		if (s->fd_lpt != -1 || (joy_distinct && s->kbd != NULL)) {
+			emu_idx++;
+			continue;
+		}
+		s->sdl_joy = opened[sdl_idx];
+		opened[sdl_idx] = NULL; /* claimed – don't close in cleanup */
+		Log_print("Joystick %i (%s) mapped to emulated joystick %i (%i axes)",
+			sdl_idx, SDL_JoystickName(s->sdl_joy), emu_idx, naxes[sdl_idx]);
+		s->nbuttons = SDL_JoystickNumButtons(s->sdl_joy);
+#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
+		if (osk_stick == NULL) {
+			osk_stick = s;
+			if (s->nbuttons > OSK_MAX_BUTTONS)
+				s->nbuttons = OSK_MAX_BUTTONS;
+		}
+#endif
+		emu_idx++;
+	}
+	/* Pass 2: remaining devices (< 2 axes – headsets, HID misc). */
+	for (sdl_idx = 0; sdl_idx < max_open && emu_idx < MAX_JOYSTICKS; sdl_idx++) {
+		if (!opened[sdl_idx])
+			continue; /* already claimed or failed to open */
+		struct stick_dev *s = &stick_devs[emu_idx];
+		if (s->fd_lpt != -1 || (joy_distinct && s->kbd != NULL)) {
+			emu_idx++;
+			continue;
+		}
+		s->sdl_joy = opened[sdl_idx];
+		opened[sdl_idx] = NULL;
+		Log_print("Joystick %i (%s) mapped to emulated joystick %i (%i axes, non-gamepad)",
+			sdl_idx, SDL_JoystickName(s->sdl_joy), emu_idx, naxes[sdl_idx]);
+		s->nbuttons = SDL_JoystickNumButtons(s->sdl_joy);
+#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
+		if (osk_stick == NULL) {
+			osk_stick = s;
+			if (s->nbuttons > OSK_MAX_BUTTONS)
+				s->nbuttons = OSK_MAX_BUTTONS;
+		}
+#endif
+		emu_idx++;
+	}
+	/* Close any devices that were opened but not claimed. */
+	for (sdl_idx = 0; sdl_idx < max_open; sdl_idx++) {
+		if (opened[sdl_idx])
+			SDL_JoystickClose(opened[sdl_idx]);
+	}
+	}
+#else  /* !SDL2 */
 	while (sdl_idx < SDL_NumJoysticks() && emu_idx < MAX_JOYSTICKS) {
 		struct stick_dev *s = &stick_devs[emu_idx];
 		if (s->fd_lpt != -1 || (joy_distinct && s->kbd != NULL)) {
@@ -1662,12 +1797,8 @@ static void Init_SDL_Joysticks(void)
 			sdl_idx++;
 			continue;
 		}
-		Log_print("Joystick %i (%s) mapped to emulated joystick %i", sdl_idx, 
-#if SDL2
-			SDL_JoystickName(s->sdl_joy), emu_idx);
-#else
+		Log_print("Joystick %i (%s) mapped to emulated joystick %i", sdl_idx,
 			SDL_JoystickName(sdl_idx), emu_idx);
-#endif
 		s->nbuttons = SDL_JoystickNumButtons(s->sdl_joy);
 #ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
 		if (osk_stick == NULL) {
@@ -1679,6 +1810,7 @@ static void Init_SDL_Joysticks(void)
 		emu_idx++;
 		sdl_idx++;
 	}
+#endif /* SDL2 */
 }
 
 int SDL_INPUT_Initialise(int *argc, char *argv[])
@@ -1968,6 +2100,23 @@ static int get_SDL_joystick_hat_state(SDL_Joystick* joystick)
 {
 #if SDL2
 	int stick = INPUT_STICK_CENTRE;
+#ifdef __EMSCRIPTEN__
+	/* In Emscripten, the standard Gamepad API places D-pad at raw button
+	   indices 12-15 (Up/Down/Left/Right), not at SDL_CONTROLLER_BUTTON_DPAD_*
+	   enum values which are one lower (11-14). */
+	if (SDL_JoystickGetButton(joystick, 12)) {
+		stick &= INPUT_STICK_FORWARD;
+	}
+	if (SDL_JoystickGetButton(joystick, 13)) {
+		stick &= INPUT_STICK_BACK;
+	}
+	if (SDL_JoystickGetButton(joystick, 14)) {
+		stick &= INPUT_STICK_LEFT;
+	}
+	if (SDL_JoystickGetButton(joystick, 15)) {
+		stick &= INPUT_STICK_RIGHT;
+	}
+#else  /* !__EMSCRIPTEN__ */
 	if (SDL_JoystickGetButton(joystick, SDL_CONTROLLER_BUTTON_DPAD_UP)) {
 		stick &= INPUT_STICK_FORWARD;
 	}
@@ -1980,6 +2129,7 @@ static int get_SDL_joystick_hat_state(SDL_Joystick* joystick)
 	if (SDL_JoystickGetButton(joystick, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) {
 		stick &= INPUT_STICK_RIGHT;
 	}
+#endif /* __EMSCRIPTEN__ */
 #else
 	Uint8 hat = SDL_JoystickGetHat(joystick, 0);
 	int stick = INPUT_STICK_CENTRE;
@@ -2038,13 +2188,12 @@ static int single_stick_port(int num) {
 	}
 #endif
 	if (s->sdl_joy != NULL) {
-#if !SDL2
 		SDL_JoystickUpdate();
-#endif
 		if (s->real_config.use_hat)
 			port &= get_SDL_joystick_hat_state(s->sdl_joy);
-		else
-			port &= get_SDL_joystick_state(s->sdl_joy, &s->real_config);
+		/* Always also sample the analog axes so that the left stick works
+		   alongside the D-pad (use_hat path above). */
+		port &= get_SDL_joystick_state(s->sdl_joy, &s->real_config);
 	}
 	return port;
 }

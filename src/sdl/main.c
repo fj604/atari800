@@ -34,6 +34,9 @@
 #include <SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 /* Atari800 includes */
 #include "atari.h"
@@ -52,6 +55,57 @@
 #include "videomode.h"
 #include "sdl/video.h"
 #include "sdl/input.h"
+
+static void PLATFORM_MainLoopStep(void)
+{
+#ifdef __EMSCRIPTEN__
+	/* Wall-clock frame pacer: run one Atari frame only when enough real time
+	   has elapsed.  This keeps the emulator at the correct PAL/NTSC rate even
+	   when requestAnimationFrame fires faster than 60 Hz (e.g. on a 120 Hz
+	   laptop panel in fullscreen). */
+	static double next_frame_deadline_ms = 0.0;
+	static double frame_duration_ms = 0.0; /* ms per Atari frame, initialised on first call */
+	double now = emscripten_get_now();
+
+	if (frame_duration_ms == 0.0) {
+		/* Initialise once we know the TV mode. */
+		double fps = (Atari800_tv_mode == Atari800_TV_PAL) ? Atari800_FPS_PAL : Atari800_FPS_NTSC;
+		if (fps <= 0.0) fps = 60.0;
+		frame_duration_ms = 1000.0 / fps;
+		next_frame_deadline_ms = now;
+	}
+
+	if (now < next_frame_deadline_ms)
+		return; /* too early – skip this RAF tick */
+
+	/* Advance deadline. If we've fallen behind by more than two frames (e.g.
+	   after a tab was backgrounded), reset so we don't try to catch up. */
+	next_frame_deadline_ms += frame_duration_ms;
+	if (next_frame_deadline_ms < now - frame_duration_ms)
+		next_frame_deadline_ms = now;
+#endif /* __EMSCRIPTEN__ */
+
+	INPUT_key_code = PLATFORM_Keyboard();
+#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
+	if (INPUT_key_code == AKEY_KEYB) {
+		Sound_Pause();
+		UI_BASIC_in_kbui = TRUE;
+		INPUT_key_code = UI_BASIC_OnScreenKeyboard(NULL, 0);
+		UI_BASIC_in_kbui = FALSE;
+		switch (INPUT_key_code) {
+			case AKEY_OPTION: INPUT_key_consol &= (~INPUT_CONSOL_OPTION); break;
+			case AKEY_SELECT: INPUT_key_consol &= (~INPUT_CONSOL_SELECT); break;
+			case AKEY_START: INPUT_key_consol &= (~INPUT_CONSOL_START); break;
+		}
+
+		Sound_Continue();
+	}
+#endif
+	SDL_INPUT_Mouse();
+	Atari800_Frame();
+	if (Atari800_display_screen)
+		PLATFORM_DisplayScreen();
+}
 
 void PLATFORM_ConfigInit(void)
 {
@@ -183,28 +237,20 @@ int main(int argc, char **argv)
 	}
 
 	/* main loop */
-	for (;;) {
-		INPUT_key_code = PLATFORM_Keyboard();
-#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
-		if (INPUT_key_code == AKEY_KEYB) {
-			Sound_Pause();
-			UI_BASIC_in_kbui = TRUE;
-			INPUT_key_code = UI_BASIC_OnScreenKeyboard(NULL, 0);
-			UI_BASIC_in_kbui = FALSE;
-			switch (INPUT_key_code) {
-				case AKEY_OPTION: INPUT_key_consol &= (~INPUT_CONSOL_OPTION); break;
-				case AKEY_SELECT: INPUT_key_consol &= (~INPUT_CONSOL_SELECT); break;
-				case AKEY_START: INPUT_key_consol &= (~INPUT_CONSOL_START); break;
-			}
-
-			Sound_Continue();
-		}
-#endif
-		SDL_INPUT_Mouse();
-		Atari800_Frame();
-		if (Atari800_display_screen)
-			PLATFORM_DisplayScreen();
+#ifdef __EMSCRIPTEN__
+	{
+		/* Use requestAnimationFrame (fps=0) so the browser drives the cadence.
+		   Frame pacing is enforced inside PLATFORM_MainLoopStep via wall-clock
+		   time, so the emulator always runs at the correct Atari rate regardless
+		   of the display refresh rate (e.g. 60 Hz windowed vs 120 Hz fullscreen
+		   on a high-refresh-rate laptop panel). */
+		emscripten_set_main_loop(PLATFORM_MainLoopStep, 0, 1);
 	}
+#else
+	for (;;) {
+		PLATFORM_MainLoopStep();
+	}
+#endif
 }
 
 /*

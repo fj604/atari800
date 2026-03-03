@@ -412,6 +412,16 @@ static void UpdateSyncBuffer(void)
 				  (sync_buffer_size - fill)/Sound_out.channels/Sound_out.sample_size,
 				  bytes_written/Sound_out.channels/Sound_out.sample_size);
 #endif
+#ifdef __EMSCRIPTEN__
+		/* In Emscripten there are no real threads: the SDL audio callback
+		   (AudioWorklet/ScriptProcessorNode) can only run between JavaScript
+		   event-loop ticks.  Blocking here in a spin-wait would prevent the
+		   browser from ever running the callback, causing a permanent deadlock.
+		   Drop this frame's audio instead and return; a few glitches are far
+		   better than a hung tab. */
+		PLATFORM_SoundUnlock();
+		return;
+#else
 		/* Wait until hardware buffer can be filled, or wait until callback
 		   makes place in the buffer. */
 		do {
@@ -426,6 +436,7 @@ static void UpdateSyncBuffer(void)
 #endif /* SOUND_CALLBACK */
 			fill = sync_write_pos - sync_read_pos;
 		} while (bytes_written > sync_buffer_size - fill);
+#endif /* __EMSCRIPTEN__ */
 	}
 	/* Now bytes_written <= audio_buffer_size + dsp_read_pos - dsp_write_pos) */
 
