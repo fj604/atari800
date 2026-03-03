@@ -206,7 +206,8 @@
   if (startupMediaPath) {
     try {
       const name = String(startupMediaPath).split('/').pop();
-      fetch(`/media/${encodeURIComponent(name)}`)
+      // store a promise indicating when the fetch has settled
+      window.__startupMediaFetchPromise = fetch(`/media/${encodeURIComponent(name)}`)
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.arrayBuffer();
@@ -221,7 +222,10 @@
         });
     } catch (e) {
       log(`Startup media fetch failed: ${e}`);
+      window.__startupMediaFetchPromise = Promise.resolve();
     }
+  } else {
+    window.__startupMediaFetchPromise = Promise.resolve();
   }
 
   const startupFsPath = startupMediaPath ? `${USERDATA_DIR}/${String(startupMediaPath).split('/').pop()}` : null;
@@ -431,7 +435,10 @@
   const script = document.createElement('script');
   script.src = 'dist/atari800.js';
   script.onerror = () => log('Failed to load dist/atari800.js. Build the web port first.');
-  document.body.appendChild(script);
+  // Delay loading the emulator until startup media fetch finishes (if any).
+  (window.__startupMediaFetchPromise || Promise.resolve()).finally(() => {
+    document.body.appendChild(script);
+  });
 
   // ---------------------------------------------------------------------------
   // Gamepad / controller support
