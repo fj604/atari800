@@ -44,4 +44,5 @@
 /.vscode
 
 /web/dist
+/web/media
 /build-web

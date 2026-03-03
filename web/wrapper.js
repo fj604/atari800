@@ -194,11 +194,38 @@
 
 
   const startupMediaPath = getStartupPath();
-  const startupArgs = getStartupArgs(startupMediaPath);
   currentMediaEl.textContent = startupMediaPath || '(none)';
   if (startupMediaPath) {
-    log(`Classifying ${startupMediaPath} as ${classifyArgs(startupMediaPath).join(' ')}`);
+    log(`Requested startup media: ${startupMediaPath}`);
   }
+
+  // If a `media` param was supplied, attempt to fetch it from /media/<name>
+  // and arrange for it to be written into the mounted `USERDATA_DIR` before
+  // the emulator runtime starts. The fetch is started immediately and the
+  // resulting buffer (if any) is written into IDBFS during Module.preRun.
+  if (startupMediaPath) {
+    try {
+      const name = String(startupMediaPath).split('/').pop();
+      fetch(`/media/${encodeURIComponent(name)}`)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.arrayBuffer();
+        })
+        .then(buf => {
+          window.__startupMediaBuffer = new Uint8Array(buf);
+          window.__startupMediaName = name;
+          log(`Fetched startup media ${name} (${window.__startupMediaBuffer.length} bytes)`);
+        })
+        .catch(err => {
+          log(`Failed to fetch startup media ${startupMediaPath}: ${err}`);
+        });
+    } catch (e) {
+      log(`Startup media fetch failed: ${e}`);
+    }
+  }
+
+  const startupFsPath = startupMediaPath ? `${USERDATA_DIR}/${String(startupMediaPath).split('/').pop()}` : null;
+  const startupArgs = getStartupArgs(startupFsPath || startupMediaPath);
 
   window.Module = {
     canvas,
@@ -215,7 +242,24 @@
         } else {
           log('Browser storage mounted.');
         }
-        removeRunDependency('idbfs');
+
+        if (window.__startupMediaBuffer && window.__startupMediaName) {
+          try {
+            const target = `${USERDATA_DIR}/${window.__startupMediaName}`;
+            try { FS.unlink(target); } catch (e) {}
+            FS.writeFile(target, window.__startupMediaBuffer, { encoding: 'binary' });
+            setMediaMeta(target, { size: window.__startupMediaBuffer.length, mtime: Date.now(), originalName: window.__startupMediaName });
+            log(`Wrote startup media to ${target}`);
+          } catch (e) {
+            log(`Failed to write startup media: ${e}`);
+          }
+          FS.syncfs(false, (err2) => {
+            if (err2) log(`Failed to save startup media to browser storage: ${err2}`);
+            removeRunDependency('idbfs');
+          });
+        } else {
+          removeRunDependency('idbfs');
+        }
       });
     }],
     onRuntimeInitialized: () => {
