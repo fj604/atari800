@@ -27,6 +27,7 @@ emmake make -j"$(nproc)"
 
 emcc "${ROOT_DIR}/web/atari800_emscripten.c" \
   "${BUILD_DIR}/src/libatari800.a" \
+  -I"${BUILD_DIR}" -I"${BUILD_DIR}/src" \
   -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/src/libatari800" \
   -O2 \
   -sWASM=1 \
