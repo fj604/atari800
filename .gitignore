@@ -42,3 +42,8 @@
 
 # VS Code
 /.vscode
+
+# WebAssembly web port artifacts
+/build-web
+/web/dist
+/web/artifacts
