@@ -15,6 +15,7 @@
 #include "screen.h"
 #include "colours.h"
 #include "atari.h"
+#include "cartridge.h"
 
 #define WEB_SCREEN_PIXELS (Screen_WIDTH * Screen_HEIGHT)
 #define WEB_RGBA_BYTES (WEB_SCREEN_PIXELS * 4)
@@ -171,4 +172,64 @@ int web_fs_ensure_dir(const char *path) {
 		return 1;
 	}
 	return 0;
+}
+
+
+static int web_guess_cart_type(int size_kb) {
+	switch (size_kb) {
+		case 2: return CARTRIDGE_STD_2;
+		case 4: return CARTRIDGE_STD_4;
+		case 8: return CARTRIDGE_STD_8;
+		case 16: return CARTRIDGE_STD_16;
+		case 32: return CARTRIDGE_XEGS_32;
+		case 64: return CARTRIDGE_XEGS_07_64;
+		case 128: return CARTRIDGE_XEGS_128;
+		case 256: return CARTRIDGE_XEGS_256;
+		case 512: return CARTRIDGE_XEGS_512;
+		case 1024: return CARTRIDGE_XEGS_1024;
+		default: return CARTRIDGE_NONE;
+	}
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_atari800_mount_cartridge(const char *path) {
+	int result = CARTRIDGE_InsertAutoReboot(path);
+	if (result > 0) {
+		int guessed = web_guess_cart_type(result);
+		if (guessed != CARTRIDGE_NONE) {
+			CARTRIDGE_SetTypeAutoReboot(&CARTRIDGE_main, guessed);
+			return 0;
+		}
+	}
+	return result;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_atari800_unmount_disk(int drive) {
+	libatari800_unmount_disk(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+unsigned char *web_atari800_get_sound_ptr(void) {
+	return libatari800_get_sound_buffer();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_atari800_get_sound_len(void) {
+	return libatari800_get_sound_buffer_len();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_atari800_get_sound_freq(void) {
+	return libatari800_get_sound_frequency();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_atari800_get_sound_channels(void) {
+	return libatari800_get_num_sound_channels();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_atari800_get_sound_sample_size(void) {
+	return libatari800_get_sound_sample_size();
 }

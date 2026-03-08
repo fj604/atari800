@@ -12,7 +12,15 @@ const state = {
   muted: false,
   console: { start: 0, select: 0, option: 0 },
   joystick: { nibble: 15, trigger: 0 },
-  key: null
+  key: null,
+  audio: {
+    ctx: null,
+    node: null,
+    queue: [],
+    offset: 0,
+    channels: 2,
+    started: false
+  }
 };
 
 const statusEl = document.getElementById('status');
@@ -95,7 +103,7 @@ async function refreshLibraryUI() {
     mediaList.appendChild(row);
 
     if (r.type === 'disk') diskSelect.add(new Option(r.name, r.name));
-    if (r.type !== 'rom') bootSelect.add(new Option(r.name, r.name));
+    if (r.type !== 'rom') bootSelect.add(new Option(r.name, `${r.type}:${r.name}`));
   }
 }
 
@@ -110,7 +118,6 @@ async function importFiles(files) {
 
 function keyToAtari(ev) {
   const m = {
-    ArrowUp: ['code', 0x8e], ArrowDown: ['code', 0x8f], ArrowLeft: ['code', 0x86], ArrowRight: ['code', 0x87],
     Enter: ['char', 10], Backspace: ['char', 8], Escape: ['char', 27], Tab: ['char', 9],
     F2: ['special', 0x03], F3: ['special', 0x04], F4: ['special', 0x13], F5: ['special', 0x14]
   };
@@ -129,17 +136,86 @@ function applyInput() {
   if (state.key) c(`web_atari800_set_${state.key.kind}`, null, ['number'], [state.key.value]);
 }
 
+function initAudioIfNeeded() {
+  if (state.audio.started || !state.mod) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const c = state.mod.ccall;
+  const channels = Math.max(1, c('web_atari800_get_sound_channels', 'number', [], []));
+  state.audio.channels = channels;
+  state.audio.ctx = new AudioContextClass({ sampleRate: c('web_atari800_get_sound_freq', 'number', [], []) || 44100 });
+  state.audio.node = state.audio.ctx.createScriptProcessor(2048, 0, 2);
+  state.audio.node.onaudioprocess = (event) => {
+    const outL = event.outputBuffer.getChannelData(0);
+    const outR = event.outputBuffer.getChannelData(1);
+    outL.fill(0); outR.fill(0);
+    if (state.muted) return;
+
+    for (let i = 0; i < outL.length; i += 1) {
+      while (state.audio.queue.length && state.audio.offset >= state.audio.queue[0].length) {
+        state.audio.queue.shift();
+        state.audio.offset = 0;
+      }
+      if (!state.audio.queue.length) break;
+      const frame = state.audio.queue[0];
+      if (state.audio.channels === 1) {
+        const s = frame[state.audio.offset++];
+        outL[i] = s;
+        outR[i] = s;
+      }
+      else {
+        outL[i] = frame[state.audio.offset++] || 0;
+        outR[i] = frame[state.audio.offset++] || 0;
+      }
+    }
+  };
+  state.audio.node.connect(state.audio.ctx.destination);
+  state.audio.ctx.resume();
+  state.audio.started = true;
+}
+
+function pushAudioFrame() {
+  if (!state.audio.started || !state.audio.ctx || state.muted) return;
+  const c = state.mod.ccall;
+  const ptr = c('web_atari800_get_sound_ptr', 'number', [], []);
+  const len = c('web_atari800_get_sound_len', 'number', [], []);
+  const sampleSize = c('web_atari800_get_sound_sample_size', 'number', [], []);
+  const channels = Math.max(1, c('web_atari800_get_sound_channels', 'number', [], []));
+  const heap = state.mod.HEAPU8 || (state.mod.wasmMemory ? new Uint8Array(state.mod.wasmMemory.buffer) : null);
+  if (!heap || ptr <= 0 || len <= 0) return;
+
+  let pcm;
+  if (sampleSize === 2) {
+    const view = new Int16Array(heap.buffer, ptr, len / 2);
+    pcm = new Float32Array(view.length);
+    for (let i = 0; i < view.length; i += 1) pcm[i] = view[i] / 32768;
+  }
+  else {
+    const view = heap.subarray(ptr, ptr + len);
+    pcm = new Float32Array(view.length);
+    for (let i = 0; i < view.length; i += 1) pcm[i] = (view[i] - 128) / 128;
+  }
+
+  state.audio.channels = channels;
+  state.audio.queue.push(pcm);
+  if (state.audio.queue.length > 12) state.audio.queue.shift();
+}
+
 function startLoop() {
   state.running = true;
   const width = state.mod.ccall('web_atari800_get_width', 'number', [], []);
   const height = state.mod.ccall('web_atari800_get_height', 'number', [], []);
-  canvas.width = width; canvas.height = height;
+  canvas.width = width;
+  canvas.height = height;
 
   const tick = () => {
     if (!state.running) return;
     applyInput();
     const ok = state.mod.ccall('web_atari800_frame', 'number', [], []);
-    if (!ok) status(`Emulator error: ${state.mod.UTF8ToString(state.mod.ccall('web_atari800_last_error', 'number', [], []))}`);
+    if (!ok) {
+      status(`Emulator error: ${state.mod.UTF8ToString(state.mod.ccall('web_atari800_last_error', 'number', [], []))}`);
+    }
     const ptr = state.mod.ccall('web_atari800_get_rgba_ptr', 'number', [], []);
     const heap = state.mod.HEAPU8 || (state.mod.wasmMemory ? new Uint8Array(state.mod.wasmMemory.buffer) : null);
     if (!heap) {
@@ -149,6 +225,7 @@ function startLoop() {
     }
     imageData.data.set(heap.subarray(ptr, ptr + (384 * 240 * 4)));
     ctx.putImageData(imageData, 0, 0);
+    pushAudioFrame();
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -190,11 +267,25 @@ document.getElementById('mountDiskBtn').onclick = () => {
   status(ok ? `Mounted ${name} in D1` : `Failed to mount ${name}`);
 };
 
+document.getElementById('ejectDiskBtn').onclick = () => {
+  state.mod.ccall('web_atari800_unmount_disk', null, ['number'], [1]);
+  status('Ejected disk from D1');
+};
+
 document.getElementById('runBtn').onclick = () => {
-  const name = document.getElementById('bootSelect').value;
-  if (!name) return;
-  const ok = state.mod.ccall('web_atari800_reboot_with_file', 'number', ['string'], [`${LIB}/${name}`]);
-  status(ok ? `Booted ${name}` : `Failed to boot ${name}`);
+  const selected = document.getElementById('bootSelect').value;
+  if (!selected) return;
+  const [type, name] = selected.split(':', 2);
+  const path = `${LIB}/${name}`;
+  let ok = 0;
+  if (type === 'cartrom') {
+    ok = state.mod.ccall('web_atari800_mount_cartridge', 'number', ['string'], [path]);
+    status(ok === 0 ? `Mounted cartridge ${name}` : `Cartridge mount returned ${ok}`);
+  }
+  else {
+    ok = state.mod.ccall('web_atari800_reboot_with_file', 'number', ['string'], [path]);
+    status(ok ? `Booted ${name}` : `Failed to boot ${name}`);
+  }
 };
 
 document.getElementById('warmResetBtn').onclick = () => state.mod.ccall('web_atari800_warm_reset', null, [], []);
@@ -209,30 +300,36 @@ document.getElementById('fullscreenBtn').onclick = async () => {
 
 document.getElementById('muteBtn').onclick = () => {
   state.muted = !state.muted;
-  state.mod._SDL_PauseAudioDevice?.(0, state.muted ? 1 : 0);
+  document.getElementById('muteBtn').textContent = state.muted ? 'Unmute' : 'Mute';
 };
 
 setTempConsole('startBtn', 'start');
 setTempConsole('selectBtn', 'select');
 setTempConsole('optionBtn', 'option');
 
+const tryStartAudio = () => initAudioIfNeeded();
+window.addEventListener('pointerdown', tryStartAudio, { passive: true });
+window.addEventListener('keydown', tryStartAudio, { passive: true });
+
 window.addEventListener('keydown', (ev) => {
-  const k = keyToAtari(ev);
-  if (k) {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Control', 'ControlLeft', 'ControlRight'].includes(ev.key) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ControlLeft', 'ControlRight'].includes(ev.code)) {
     ev.preventDefault();
-    state.key = { kind: k[0], value: k[1], shift: ev.shiftKey, ctrl: ev.ctrlKey };
   }
-  if (ev.code === 'KeyW') state.joystick.nibble &= ~0x1;
-  if (ev.code === 'KeyS') state.joystick.nibble &= ~0x2;
-  if (ev.code === 'KeyA') state.joystick.nibble &= ~0x4;
-  if (ev.code === 'KeyD') state.joystick.nibble &= ~0x8;
-  if (ev.code === 'Space') state.joystick.trigger = 1;
+
+  if (ev.code === 'ArrowUp') state.joystick.nibble &= ~0x1;
+  if (ev.code === 'ArrowDown') state.joystick.nibble &= ~0x2;
+  if (ev.code === 'ArrowLeft') state.joystick.nibble &= ~0x4;
+  if (ev.code === 'ArrowRight') state.joystick.nibble &= ~0x8;
+  if (ev.code === 'ControlLeft' || ev.code === 'ControlRight') state.joystick.trigger = 1;
+
+  const k = keyToAtari(ev);
+  if (k) state.key = { kind: k[0], value: k[1], shift: ev.shiftKey, ctrl: ev.ctrlKey };
 });
 
 window.addEventListener('keyup', (ev) => {
   state.key = null;
-  if (['KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(ev.code)) state.joystick.nibble = 15;
-  if (ev.code === 'Space') state.joystick.trigger = 0;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.code)) state.joystick.nibble = 15;
+  if (ev.code === 'ControlLeft' || ev.code === 'ControlRight') state.joystick.trigger = 0;
 });
 
 window.addEventListener('gamepadconnected', () => status('Gamepad connected'));

@@ -8,11 +8,12 @@ This directory contains an Emscripten/WebAssembly port of Atari800 built on top 
 - Browser UI with canvas display, media controls, reset controls, status line.
 - Drag-and-drop import and file picker import.
 - IndexedDB-backed media library (disk/cart/tape/ROM/state assets).
-- Mount disk (`D1`) and reboot/run from selected media.
+- Mount/eject disk (`D1`) and reboot/run from selected media.
 - Save/load quick state to `/userdata/saves/quick.a8s`.
 - Fullscreen toggle.
-- Keyboard + WASD/space joystick emulation.
+- Keyboard joystick emulation via Arrow keys + Ctrl (fire).
 - Basic browser Gamepad API polling mapped to joystick 0.
+- WebAudio playback from emulator sound buffer (started on first user interaction).
 
 ## Build
 
@@ -67,7 +68,6 @@ No copyrighted Atari ROMs are bundled. Import user-provided ROM files via the fi
 
 ## Known limitations
 
-- Audio output path is not fully wired in this frontend yet (mute button is placeholder behavior).
 - UI currently mounts only drive D1 directly; multi-drive UI can be added.
 - Key mapping is intentionally minimal and should be expanded for full Atari keyboard parity.
 - Save-state slots are currently limited to one quick-state path.
