@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atari800 Web Port</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <h1>Atari800 (WebAssembly)</h1>
+    <div class="controls">
+      <button id="startBtn">Start Emulator</button>
+      <button id="audioBtn">Enable Audio</button>
+      <button id="fullscreenBtn">Fullscreen</button>
+      <button id="warmResetBtn">Warm Reset</button>
+      <button id="coldResetBtn">Cold Reset</button>
+      <label class="file-picker">Import Media <input id="fileInput" type="file" multiple /></label>
+    </div>
+
+    <div class="layout" id="layoutRoot">
+      <section class="display-wrap" id="displayWrap">
+        <canvas id="canvas" tabindex="0"></canvas>
+      </section>
+      <aside class="panel">
+        <h2>Media Library</h2>
+        <ul id="libraryList"></ul>
+        <h3>Input Mapping</h3>
+        <p>Joystick 0: Arrow keys + Right Ctrl (fire)</p>
+        <p>Joystick 1: Arrow keys + Left Ctrl (fire)</p>
+        <p>Atari specials: Option=1, Select=2, Start=3, Reset=4, Help=5, Break=6, Monitor=7, Exit=8, Screenshot=9</p>
+      </aside>
+    </div>
+
+    <p id="status">Ready.</p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

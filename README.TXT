@@ -33,3 +33,35 @@ Dec 29, 2023
 E-mail: pstehlik@sophics.cz
 
 Project homepage: http://atari800.github.io/
+
+WebAssembly/Emscripten browser port
+----------------------------------
+
+This repository now includes a browser-targeted Atari800 build using Emscripten + SDL2.
+
+Quick start:
+1. Install emsdk (default path used by scripts: /workspace/emsdk).
+2. Run: `scripts/build-web.sh`
+3. Serve `web/dist` (for example: `python3 -m http.server 4173 -d web/dist`).
+4. Open the page and click "Start Emulator".
+
+Implemented browser-facing features:
+- SDL2-based Atari800 compiled to WebAssembly (client-side only).
+- Browser UI with centered display, fullscreen toggle, reset buttons, audio unlock button, drag-and-drop and file picker import.
+- IndexedDB-backed local media library for cartridge/disk/tape/state files (add, mount, delete).
+- Keyboard mapping documentation in UI.
+- Web-default joystick mapping in Emscripten builds:
+  - Joystick 0: Arrow keys + Right Ctrl
+  - Joystick 1: Arrow keys + Left Ctrl
+- Web-default Atari special key mapping in Emscripten builds:
+  - Option=1, Select=2, Start=3, Reset=4, Help=5, Break=6, Monitor=7, Exit=8, Screenshot=9
+
+Playwright E2E tests:
+- Config: `playwright.config.ts`
+- Tests: `tests/web.spec.ts`
+- Run: `npm install && npx playwright install chromium && npm run test:e2e`
+
+Limitations and notes:
+- No copyrighted Atari ROM images are bundled; users must import their own ROM/media assets.
+- Browser automation can verify audio-unlock flow and UI observables, but cannot fully assert synthesized Atari audio wave fidelity.
+- Browser port build disables host-specific NetSIO and R: serial/network device support for compatibility.

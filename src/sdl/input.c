@@ -79,13 +79,21 @@ static int kbd_joy_1_enabled = FALSE;	/* disabled, would steal normal keys */
    in the order up, down, left, right, trigger */
 static int kbd_stick0[5] = {
 #if SDL2
+	#ifdef __EMSCRIPTEN__
+	SDLK_UP, SDLK_DOWN, SDLK_LEFT, SDLK_RIGHT, SDLK_RCTRL
+	#else
 	SDLK_KP_8, SDLK_KP_5, SDLK_KP_4, SDLK_KP_6, SDLK_RCTRL
+	#endif
 #else
 	SDLK_KP8, SDLK_KP5, SDLK_KP4, SDLK_KP6, SDLK_RCTRL
 #endif
 };
 static int kbd_stick1[5] = {
+	#ifdef __EMSCRIPTEN__
+	SDLK_UP, SDLK_DOWN, SDLK_LEFT, SDLK_RIGHT, SDLK_LCTRL
+	#else
 	SDLK_w, SDLK_s, SDLK_a, SDLK_d, SDLK_LCTRL
+	#endif
 };
 #define KBD_STICK_0_UP kbd_stick0[0]
 #define KBD_STICK_0_DOWN kbd_stick0[1]
@@ -100,6 +108,17 @@ static int kbd_stick1[5] = {
 
 /* Maping for the START, RESET, OPTION, SELECT and EXIT keys */
 static int KBD_UI = SDLK_F1;
+#ifdef __EMSCRIPTEN__
+static int KBD_OPTION = SDLK_1;
+static int KBD_SELECT = SDLK_2;
+static int KBD_START = SDLK_3;
+static int KBD_RESET = SDLK_4;
+static int KBD_HELP = SDLK_5;
+static int KBD_BREAK = SDLK_6;
+static int KBD_MON = SDLK_7;
+static int KBD_EXIT = SDLK_8;
+static int KBD_SSHOT = SDLK_9;
+#else
 static int KBD_OPTION = SDLK_F2;
 static int KBD_SELECT = SDLK_F3;
 static int KBD_START = SDLK_F4;
@@ -109,6 +128,7 @@ static int KBD_BREAK = SDLK_F7;
 static int KBD_MON = SDLK_F8;
 static int KBD_EXIT = SDLK_F9;
 static int KBD_SSHOT = SDLK_F10;
+#endif
 static int KBD_TURBO = SDLK_F12;
 
 /* Each emulated joystick can take its input from host keyboard, an
