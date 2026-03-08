@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atari800 WebAssembly Port</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Atari800 (WebAssembly)</h1>
+    <div id="status">Initializing...</div>
+  </header>
+
+  <main>
+    <section class="display-panel">
+      <canvas id="screen" width="384" height="240" tabindex="0"></canvas>
+      <div class="controls">
+        <button id="fullscreenBtn">Fullscreen</button>
+        <button id="muteBtn">Mute</button>
+        <button id="warmResetBtn">Warm Reset</button>
+        <button id="coldResetBtn">Cold Reset</button>
+      </div>
+    </section>
+
+    <section class="sidebar">
+      <h2>Media</h2>
+      <input id="importFiles" type="file" multiple />
+      <p>or drag & drop files on this page</p>
+      <div id="mediaList"></div>
+
+      <h2>Mount/Run</h2>
+      <label>Drive 1 disk:
+        <select id="diskSelect"></select>
+      </label>
+      <button id="mountDiskBtn">Mount D1</button>
+      <label>Boot/run media:
+        <select id="bootSelect"></select>
+      </label>
+      <button id="runBtn">Reboot with File</button>
+
+      <h2>State</h2>
+      <button id="saveStateBtn">Save State</button>
+      <button id="loadStateBtn">Load State</button>
+
+      <h2>Console Keys</h2>
+      <div class="controls">
+        <button id="startBtn">START</button>
+        <button id="selectBtn">SELECT</button>
+        <button id="optionBtn">OPTION</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="atari800-web.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
