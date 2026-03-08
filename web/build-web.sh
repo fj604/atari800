@@ -25,6 +25,7 @@ emconfigure "${ROOT_DIR}/configure" --target=libatari800 \
   --disable-netsio
 emmake make -j"$(nproc)"
 
+# Use build-tree include paths first so generated config.h is resolvable
 emcc "${ROOT_DIR}/web/atari800_emscripten.c" \
   "${BUILD_DIR}/src/libatari800.a" \
   -I"${BUILD_DIR}" -I"${BUILD_DIR}/src" \
