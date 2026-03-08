@@ -156,7 +156,11 @@ function setTempConsole(buttonId, key) {
 
 async function init() {
   state.db = await openDb();
-  state.mod = await Module();
+  const moduleFactory = globalThis.Atari800Module || globalThis.Module;
+  if (typeof moduleFactory !== 'function') {
+    throw new Error('WASM loader not found. Build first and open web/dist/index.html so atari800-web.js is loaded.');
+  }
+  state.mod = await moduleFactory();
 
   for (const path of [ROOT, LIB, ROMS, SAVES]) state.mod.ccall('web_fs_ensure_dir', 'number', ['string'], [path]);
 
