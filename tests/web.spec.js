@@ -7,6 +7,16 @@ test('page loads and canvas visible with startup asset', async ({ page }) => {
   await expect(page.locator('#status')).toContainText('Altirra default ROM');
 });
 
+
+test('runtime stays alive without Emscripten exit error', async ({ page }) => {
+  const errors = [];
+  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  await page.goto('/atari800.html');
+  await expect.poll(() => page.evaluate(() => window.__a8StartupReady)).toBeTruthy();
+  await page.waitForTimeout(1500);
+  expect(errors.filter(e => e.includes('program exited')).length).toBe(0);
+});
+
 test('centered layout, fullscreen, import ui and keyboard path', async ({ page }) => {
   await page.goto('/atari800.html');
   const centered = await page.evaluate(() => {

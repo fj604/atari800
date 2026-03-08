@@ -59,6 +59,8 @@ Browser UI features:
   browser-local storage.
 - Touch joystick overlay (auto-enabled on touch-capable devices) with
   movement + fire, and settings toggle.
+- Web build intentionally disables SDL OpenGL path to avoid browser EGL
+  context failures; software SDL path is used instead.
 
 Input mapping:
 - Joystick 0: Arrow keys = direction, Left Ctrl = fire.

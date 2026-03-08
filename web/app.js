@@ -128,5 +128,21 @@
     setStatus('Page loaded');
     refreshMediaList();
     bindTouchControls();
+    const startupProbe = setInterval(() => {
+      const c = $('canvas');
+      if (!c || !c.width || !c.height) return;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      const d = ctx.getImageData(0, 0, Math.min(c.width, 64), Math.min(c.height, 64)).data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] || d[i + 1] || d[i + 2]) {
+          window.__a8StartupReady = true;
+          if (!window.__a8LastKey) setStatus('Emulator running (Altirra default ROM)');
+          clearInterval(startupProbe);
+          return;
+        }
+      }
+    }, 200);
+    setTimeout(() => clearInterval(startupProbe), 10000);
   });
 })();

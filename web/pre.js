@@ -30,5 +30,9 @@ Module.setStatus = function(text) {
   if (el && text) el.textContent = text;
 };
 
-Module.postRun = Module.postRun || [];
-Module.postRun.push(function(){ window.__a8StartupReady = true; Module.setStatus('Emulator running (Altirra default ROM)'); });
+var __prevOnRuntimeInitialized = Module.onRuntimeInitialized;
+Module.onRuntimeInitialized = function() {
+  if (typeof __prevOnRuntimeInitialized === 'function') __prevOnRuntimeInitialized();
+  window.__a8StartupReady = true;
+  if (!window.__a8LastKey) Module.setStatus('Emulator running (Altirra default ROM)');
+};

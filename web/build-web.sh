@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source /workspace/emsdk/emsdk_env.sh >/dev/null
 cd "$ROOT"
 autoreconf -fi >/dev/null
-emconfigure ./configure --with-video=sdl2 --with-sound=sdl2 --disable-netsio --disable-riodevice --disable-rnetwork --disable-rserial >/dev/null
+emconfigure ./configure --with-video=sdl2 --with-sound=sdl2 --disable-netsio --disable-riodevice --disable-rnetwork --disable-rserial --without-opengl >/dev/null
 emmake make -j"$(nproc)" >/dev/null
 mkdir -p web/dist
 cd src
