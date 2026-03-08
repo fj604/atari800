@@ -141,7 +141,13 @@ function startLoop() {
     const ok = state.mod.ccall('web_atari800_frame', 'number', [], []);
     if (!ok) status(`Emulator error: ${state.mod.UTF8ToString(state.mod.ccall('web_atari800_last_error', 'number', [], []))}`);
     const ptr = state.mod.ccall('web_atari800_get_rgba_ptr', 'number', [], []);
-    imageData.data.set(state.mod.HEAPU8.subarray(ptr, ptr + (384 * 240 * 4)));
+    const heap = state.mod.HEAPU8 || (state.mod.wasmMemory ? new Uint8Array(state.mod.wasmMemory.buffer) : null);
+    if (!heap) {
+      status('Renderer error: WASM heap view unavailable');
+      state.running = false;
+      return;
+    }
+    imageData.data.set(heap.subarray(ptr, ptr + (384 * 240 * 4)));
     ctx.putImageData(imageData, 0, 0);
     requestAnimationFrame(tick);
   };
@@ -172,7 +178,7 @@ async function init() {
   else status('Ready');
 
   await refreshLibraryUI();
-  startLoop();
+  if (ok) startLoop();
 }
 
 document.getElementById('importFiles').addEventListener('change', (e) => importFiles(e.target.files));

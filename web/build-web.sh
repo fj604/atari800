@@ -36,7 +36,7 @@ emcc "${ROOT_DIR}/web/atari800_emscripten.c" \
   -sMODULARIZE=1 \
   -sEXPORT_NAME=Atari800Module \
   -sEXPORT_ES6=0 \
-  -sEXPORTED_RUNTIME_METHODS=ccall,FS,UTF8ToString \
+  -sEXPORTED_RUNTIME_METHODS=ccall,FS,UTF8ToString,HEAPU8 \
   -sEXPORTED_FUNCTIONS=_malloc,_free \
   -sINITIAL_MEMORY=134217728 \
   -o "${OUT_DIR}/atari800-web.js"
