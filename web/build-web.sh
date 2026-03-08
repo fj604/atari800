@@ -13,7 +13,9 @@ if [[ ! -f configure ]]; then
 fi
 
 cd "${BUILD_DIR}"
-emconfigure "${ROOT_DIR}/configure" --target=libatari800 --disable-shared
+emconfigure "${ROOT_DIR}/configure" --target=libatari800 --disable-shared \
+  --disable-riodevice \
+  --disable-netsio
 emmake make -j"$(nproc)"
 
 emcc "${ROOT_DIR}/web/atari800_emscripten.c" \

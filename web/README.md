@@ -27,6 +27,8 @@ Build command:
 ./web/build-web.sh
 ```
 
+The web build disables desktop networking backends (`--disable-riodevice --disable-netsio`) because they rely on host TTY/socket behavior that is not available in browser/Emscripten builds.
+
 Artifacts are placed in `web/dist/`:
 
 - `atari800-web.wasm`
