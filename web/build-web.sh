@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_DIR="${ROOT_DIR}/build-web"
+OUT_DIR="${ROOT_DIR}/web/dist"
+
+mkdir -p "${BUILD_DIR}" "${OUT_DIR}"
+
+cd "${ROOT_DIR}"
+if [[ ! -f configure ]]; then
+  autoreconf -fi
+fi
+
+for tool in emcc emconfigure emmake; do
+  if ! command -v "${tool}" >/dev/null 2>&1; then
+    echo "Missing required tool: ${tool}" >&2
+    exit 1
+  fi
+done
+
+cd "${BUILD_DIR}"
+emconfigure "${ROOT_DIR}/configure" --host=none-none-none --target=libatari800 \
+  --disable-riodevice \
+  --disable-netsio
+emmake make -j"$(nproc)"
+
+# Use build-tree include paths first so generated config.h is resolvable
+emcc "${ROOT_DIR}/web/atari800_emscripten.c" \
+  "${BUILD_DIR}/src/libatari800.a" \
+  -I"${BUILD_DIR}" -I"${BUILD_DIR}/src" \
+  -I"${ROOT_DIR}/src" -I"${ROOT_DIR}/src/libatari800" \
+  -O2 \
+  -sWASM=1 \
+  -sALLOW_MEMORY_GROWTH=1 \
+  -sMODULARIZE=1 \
+  -sEXPORT_NAME=Atari800Module \
+  -sEXPORT_ES6=0 \
+  -sEXPORTED_RUNTIME_METHODS=ccall,FS,UTF8ToString,HEAPU8 \
+  -sEXPORTED_FUNCTIONS=_malloc,_free \
+  -sINITIAL_MEMORY=134217728 \
+  -o "${OUT_DIR}/atari800-web.js"
+
+cp "${ROOT_DIR}/web/index.html" "${ROOT_DIR}/web/app.js" "${ROOT_DIR}/web/style.css" "${OUT_DIR}/"
+
+echo "Built web port into ${OUT_DIR}"

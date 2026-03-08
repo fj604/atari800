@@ -1,0 +1,12 @@
+:root { color-scheme: dark; }
+body { margin: 0; font-family: sans-serif; background: #1b1b1b; color: #eee; }
+header { padding: 10px 16px; border-bottom: 1px solid #444; }
+main { display: flex; gap: 16px; padding: 16px; }
+.display-panel { flex: 1; }
+.sidebar { width: 320px; background: #242424; padding: 12px; border-radius: 8px; }
+#screen { width: min(100%, 960px); aspect-ratio: 384 / 240; image-rendering: pixelated; border: 1px solid #555; background: #000; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+button, select, input { background: #333; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 6px; }
+#mediaList { max-height: 200px; overflow: auto; border: 1px solid #444; padding: 8px; }
+.media-row { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+body.drag-over { outline: 4px dashed #88f; outline-offset: -4px; }
