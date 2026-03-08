@@ -34,6 +34,9 @@
 #include <SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 /* Atari800 includes */
 #include "atari.h"
@@ -160,6 +163,30 @@ static BOOL CtrlHandler(DWORD fdwCtrlType)
 }
 #endif /* HAVE_WINDOWS_H */
 
+static void PLATFORM_MainLoop(void)
+{
+	INPUT_key_code = PLATFORM_Keyboard();
+#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
+	if (INPUT_key_code == AKEY_KEYB) {
+		Sound_Pause();
+		UI_BASIC_in_kbui = TRUE;
+		INPUT_key_code = UI_BASIC_OnScreenKeyboard(NULL, 0);
+		UI_BASIC_in_kbui = FALSE;
+		switch (INPUT_key_code) {
+			case AKEY_OPTION: INPUT_key_consol &= (~INPUT_CONSOL_OPTION); break;
+			case AKEY_SELECT: INPUT_key_consol &= (~INPUT_CONSOL_SELECT); break;
+			case AKEY_START: INPUT_key_consol &= (~INPUT_CONSOL_START); break;
+		}
+
+		Sound_Continue();
+	}
+#endif
+	SDL_INPUT_Mouse();
+	Atari800_Frame();
+	if (Atari800_display_screen)
+		PLATFORM_DisplayScreen();
+}
+
 int main(int argc, char **argv)
 {
 #if HAVE_WINDOWS_H
@@ -183,28 +210,12 @@ int main(int argc, char **argv)
 	}
 
 	/* main loop */
-	for (;;) {
-		INPUT_key_code = PLATFORM_Keyboard();
-#ifdef USE_UI_BASIC_ONSCREEN_KEYBOARD
-		if (INPUT_key_code == AKEY_KEYB) {
-			Sound_Pause();
-			UI_BASIC_in_kbui = TRUE;
-			INPUT_key_code = UI_BASIC_OnScreenKeyboard(NULL, 0);
-			UI_BASIC_in_kbui = FALSE;
-			switch (INPUT_key_code) {
-				case AKEY_OPTION: INPUT_key_consol &= (~INPUT_CONSOL_OPTION); break;
-				case AKEY_SELECT: INPUT_key_consol &= (~INPUT_CONSOL_SELECT); break;
-				case AKEY_START: INPUT_key_consol &= (~INPUT_CONSOL_START); break;
-			}
-
-			Sound_Continue();
-		}
+#ifdef __EMSCRIPTEN__
+	emscripten_set_main_loop(PLATFORM_MainLoop, 0, 1);
+#else
+	for (;;)
+		PLATFORM_MainLoop();
 #endif
-		SDL_INPUT_Mouse();
-		Atari800_Frame();
-		if (Atari800_display_screen)
-			PLATFORM_DisplayScreen();
-	}
 }
 
 /*
