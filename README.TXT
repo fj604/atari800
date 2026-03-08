@@ -33,3 +33,40 @@ Dec 29, 2023
 E-mail: pstehlik@sophics.cz
 
 Project homepage: http://atari800.github.io/
+
+WebAssembly / Emscripten port
+-----------------------------
+A browser build is provided in the `web/` directory. It uses SDL2 through
+Emscripten and runs fully client-side in the browser.
+
+Startup asset and legal note:
+- Default startup uses the built-in Altirra replacement ROMs already present in
+  this source tree (`src/roms/altirra*` compiled in).
+- No copyrighted Atari ROM is bundled by this web packaging layer.
+
+Build and run:
+1. Install emsdk in this environment and activate it.
+2. Run `npm install`.
+3. Run `npm run build:web`.
+4. Serve `web/dist` (for example: `python3 -m http.server 4173 -d web/dist`).
+5. Open `http://127.0.0.1:4173/atari800.html`.
+
+Browser UI features:
+- Fullscreen toggle.
+- Audio unlock button and first-gesture audio resume flow.
+- Centered responsive layout with preserved canvas aspect ratio.
+- IndexedDB-based media library (import/list/load/delete) for persistent
+  browser-local storage.
+- Touch joystick overlay (auto-enabled on touch-capable devices) with
+  movement + fire, and settings toggle.
+
+Input mapping:
+- Joystick 0: Arrow keys = direction, Left Ctrl = fire.
+- OPTION/SELECT/START quick host mapping: 1/2/3.
+- UI key remains F1.
+
+Playwright test suite:
+- `npm run test:web`
+- Covers startup rendering, visibility, centered layout, fullscreen,
+  media-import UI presence, keyboard path, audio initialization signal,
+  responsive behavior at multiple viewport sizes, and touch controls.

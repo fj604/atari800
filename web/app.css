@@ -1,0 +1,20 @@
+:root { color-scheme: dark; }
+body { margin: 0; font-family: sans-serif; background: #121417; color: #eaf2ff; }
+.layout { min-height: 100vh; display: flex; flex-direction: column; gap: .75rem; padding: .75rem; box-sizing: border-box; }
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.import-label input { display: none; }
+.import-label { padding: .4rem .8rem; border: 1px solid #425; border-radius: 6px; cursor: pointer; }
+.emulator-wrap { flex: 1; display:flex; justify-content:center; align-items:center; min-height: 45vh; position: relative; }
+#canvas { max-width: min(100vw - 1.5rem, 1280px); max-height: 70vh; width: auto; height: auto; border: 1px solid #334; image-rendering: pixelated; }
+.info-panels { display:grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: .75rem; }
+#media-list { margin: 0; padding-left: 1rem; max-height: 12rem; overflow:auto; }
+#media-list button { margin-left: .4rem; }
+#touch-controls { position: absolute; inset: 0; pointer-events: none; }
+#touch-controls button { pointer-events: auto; opacity: .85; background:#2e3a5f; border:1px solid #7e8bc8; color:white; border-radius: 50%; width: 58px; height:58px; }
+#touch-controls .dpad { position:absolute; left: 1rem; bottom: 1rem; display:grid; grid-template-columns:repeat(3,58px); grid-template-rows:repeat(3,58px); gap:.3rem; }
+#touch-controls .dpad button[data-key="ArrowUp"]{ grid-column:2; grid-row:1; }
+#touch-controls .dpad button[data-key="ArrowLeft"]{ grid-column:1; grid-row:2; }
+#touch-controls .dpad button[data-key="ArrowDown"]{ grid-column:2; grid-row:3; }
+#touch-controls .dpad button[data-key="ArrowRight"]{ grid-column:3; grid-row:2; }
+#touch-controls .fire { position:absolute; right: 1rem; bottom: 1.5rem; width:80px; height:80px; }
+@media (max-width: 800px) { #canvas { max-height: 55vh; } }
