@@ -7,8 +7,9 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: 'python3 -m http.server 4173 -d web',
+    command: './scripts/test-web.sh',
     port: 4173,
     reuseExistingServer: true,
+    timeout: 10 * 60 * 1000,
   },
 });

@@ -22,14 +22,18 @@ emconfigure ./configure \
   --disable-riodevice \
   --disable-rserial \
   --disable-rnetwork \
-  CFLAGS='-O2 -sUSE_SDL=2' \
-  LDFLAGS='-sUSE_SDL=2'
+  CFLAGS='-O2 -sUSE_SDL=2 -sSINGLE_FILE=1' \
+  LDFLAGS='-sUSE_SDL=2 -sSINGLE_FILE=1'
 
 emmake make -j"$(nproc)" V=1
 
 mkdir -p "$DIST_DIR"
 cp src/atari800 "$DIST_DIR/atari800.js"
-cp src/atari800.wasm "$DIST_DIR/atari800.wasm"
+if [[ -f src/atari800.wasm ]]; then
+  cp src/atari800.wasm "$DIST_DIR/atari800.wasm"
+elif [[ -f a.wasm ]]; then
+  cp a.wasm "$DIST_DIR/atari800.wasm"
+fi
 cp web/index.html web/styles.css web/app.js "$DIST_DIR/"
 
 echo "Built web bundle in $DIST_DIR"

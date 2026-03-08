@@ -7,6 +7,7 @@ const warmResetBtn = document.getElementById('warmResetBtn');
 const coldResetBtn = document.getElementById('coldResetBtn');
 const fileInput = document.getElementById('fileInput');
 const libraryList = document.getElementById('libraryList');
+window.__atariLog = [];
 canvas.addEventListener('keydown', (e) => {
   window.__lastKey = e.key;
 });
@@ -118,8 +119,19 @@ async function startEmulator() {
         Module.FS.writeFile(`/media/${rec.name}`, rec.bytes);
       }
     }],
-    print: (msg) => { if (msg) statusEl.textContent = msg; console.log(msg); },
-    printErr: (msg) => { statusEl.textContent = `Error: ${msg}`; console.error(msg); },
+    print: (msg) => {
+      if (msg) {
+        statusEl.textContent = msg;
+        window.__atariLog.push(String(msg));
+      }
+      console.log(msg);
+    },
+    printErr: (msg) => {
+      const line = `Error: ${msg}`;
+      statusEl.textContent = line;
+      window.__atariLog.push(line);
+      console.error(msg);
+    },
     onRuntimeInitialized: () => {
       statusEl.textContent = 'Emulator running';
       canvas.focus();

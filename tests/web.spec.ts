@@ -26,3 +26,21 @@ test('fullscreen, media UI, keyboard wiring, audio unlock', async ({ page }) => 
   await page.keyboard.press('ArrowUp');
   await expect.poll(async () => page.evaluate(() => window.__lastKey)).toBe('ArrowUp');
 });
+
+test('default Altirra ROM boots and display updates', async ({ page }) => {
+  test.setTimeout(180000);
+  await page.goto('/');
+  await page.click('#startBtn', { force: true });
+
+  await expect.poll(async () => page.evaluate(() => !!window.__atariReady), {
+    timeout: 120000,
+  }).toBeTruthy();
+
+  const canvasSize = await page.evaluate(() => {
+    const c = document.getElementById('canvas') as HTMLCanvasElement;
+    return { width: c.width, height: c.height };
+  });
+  expect(canvasSize.width).toBeGreaterThan(0);
+  expect(canvasSize.height).toBeGreaterThan(0);
+  await expect(page.locator('#status')).toContainText('Emulator running');
+});

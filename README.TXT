@@ -60,6 +60,7 @@ Playwright E2E tests:
 - Config: `playwright.config.ts`
 - Tests: `tests/web.spec.ts`
 - Run: `npm install && npx playwright install chromium && npm run test:e2e`
+- Includes a boot smoke test that starts the emulator with built-in Altirra defaults and verifies runtime/display startup state.
 
 Limitations and notes:
 - No copyrighted Atari ROM images are bundled; users must import their own ROM/media assets.
