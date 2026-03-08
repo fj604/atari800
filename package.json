@@ -1,0 +1,11 @@
+{
+  "name": "atari800-web-port",
+  "private": true,
+  "scripts": {
+    "build:web": "bash web/build-web.sh",
+    "test:web": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2"
+  }
+}
