@@ -12,8 +12,15 @@ if [[ ! -f configure ]]; then
   autoreconf -fi
 fi
 
+for tool in emcc emconfigure emmake; do
+  if ! command -v "${tool}" >/dev/null 2>&1; then
+    echo "Missing required tool: ${tool}" >&2
+    exit 1
+  fi
+done
+
 cd "${BUILD_DIR}"
-emconfigure "${ROOT_DIR}/configure" --target=libatari800 --disable-shared \
+emconfigure "${ROOT_DIR}/configure" --target=libatari800 \
   --disable-riodevice \
   --disable-netsio
 emmake make -j"$(nproc)"
